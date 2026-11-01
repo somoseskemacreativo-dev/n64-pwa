@@ -1,0 +1,17 @@
+{
+  "name": "N64 Netplay Arena PWA",
+  "short_name": "N64Netplay",
+  "description": "Emulador de Nintendo 64 P2P con carga local de ROMs",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0b0f19",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/808/808439.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

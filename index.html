@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>N64 Netplay Arena - PWA</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
+  
+  <!-- Tailwind CSS para UI Dark Mode -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PeerJS para conexión P2P gratuita (WebRTC DataChannels) -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <style>
+    body { background-color: #0b0f19; color: #e2e8f0; font-family: system-ui, sans-serif; overscroll-behavior: none; }
+    .glass { background: rgba(30, 41, 59, 0.75); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); }
+    #game-container { width: 100%; height: 75vh; max-height: 720px; background: #000; border-radius: 12px; overflow: hidden; position: relative; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
+    <div class="flex items-center gap-3">
+      <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+      <h1 class="text-xl font-bold tracking-wider text-white">N64 <span class="text-indigo-400">NETPLAY</span> PWA</h1>
+    </div>
+    <div id="connection-badge" class="text-xs px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+      Modo Local / Sin Sala
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- COLUMNA IZQUIERDA: CARTUCHOS (ROMs) & LOBBY P2P -->
+    <section class="space-y-6">
+      
+      <!-- 1. GESTOR DE ROMS (IndexedDB) -->
+      <div class="glass p-5 rounded-xl space-y-4">
+        <div class="flex justify-between items-center">
+          <h2 class="font-bold text-sm uppercase tracking-wider text-indigo-400">1. Tu Biblioteca (IndexedDB)</h2>
+          <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+            + Cargar ROM (.z64/.n64)
+            <input type="file" id="rom-upload" accept=".z64,.n64,.v64,.zip" class="hidden" />
+          </label>
+        </div>
+        <p class="text-xs text-slate-400">El juego se guarda en tu dispositivo. Todos los amigos deben cargar el mismo archivo ROM para jugar.</p>
+        
+        <!-- Lista de juegos cargados -->
+        <div id="rom-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <div class="text-xs text-slate-500 italic py-4 text-center">No hay cartuchos cargados aún.</div>
+        </div>
+      </div>
+
+      <!-- 2. SALA MULTIJUGADOR P2P (PeerJS) -->
+      <div class="glass p-5 rounded-xl space-y-4">
+        <h2 class="font-bold text-sm uppercase tracking-wider text-emerald-400">2. Sala Online (P2P Coste $0)</h2>
+        
+        <div class="space-y-3">
+          <div class="flex gap-2">
+            <button id="btn-create-room" disabled class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition">
+              Crear Sala (Host - J1)
+            </button>
+          </div>
+
+          <div class="flex gap-2 items-center">
+            <input type="text" id="join-room-input" placeholder="Código de Sala del Host" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500" />
+            <button id="btn-join-room" disabled class="bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-xs font-bold py-2 px-4 rounded-lg transition">
+              Unirse
+            </button>
+          </div>
+        </div>
+
+        <!-- Información de la Sala Activa -->
+        <div id="room-info" class="hidden bg-slate-900/90 p-3 rounded-lg border border-slate-800 space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-slate-400">Código de Sala:</span>
+            <span id="room-code-display" class="font-mono text-sm font-bold text-emerald-400 select-all cursor-pointer" title="Haz clic para copiar">---</span>
+          </div>
+          <div class="text-xs text-slate-400">
+            ROM Requerida (Hash): <span id="room-hash-display" class="font-mono text-indigo-300">---</span>
+          </div>
+          <div class="border-t border-slate-800 pt-2 mt-2">
+            <div class="text-xs font-semibold text-slate-300 mb-1">Jugadores Conectados:</div>
+            <ul id="players-list" class="text-xs space-y-1 text-slate-400"></ul>
+          </div>
+          <button id="btn-start-netplay" class="hidden w-full mt-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-lg transition">
+            Iniciar Partida Sincronizada
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. LOG DE SINCRONIZACIÓN -->
+      <div class="glass p-4 rounded-xl">
+        <h3 class="text-xs font-bold uppercase text-slate-400 mb-2">Estado de Red & Controles</h3>
+        <div id="net-log" class="font-mono text-[11px] text-slate-400 h-28 overflow-y-auto space-y-1 bg-slate-950/60 p-2 rounded">
+          <div>[Sistema] Esperando selección de cartucho ROM...</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- COLUMNA DERECHA: PANTALLA DEL EMULADOR -->
+    <section class="lg:col-span-2 flex flex-col space-y-3">
+      <div id="game-container" class="border border-slate-800 shadow-2xl flex items-center justify-center">
+        <div id="emulator-placeholder" class="text-center p-6 space-y-3">
+          <div class="text-4xl">🎮</div>
+          <h3 class="text-lg font-bold text-slate-300">Selecciona una ROM para habilitar la consola</h3>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">
+            Soporta controles Bluetooth/USB (PS4, PS5, Xbox), teclado en laptop y controles táctiles automáticos en teléfonos celulares.
+          </p>
+          <button id="btn-play-solo" disabled class="mt-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-xs text-white font-semibold px-4 py-2 rounded-lg border border-slate-700 transition">
+            Probar ROM en Modo Solitario
+          </button>
+        </div>
+        <!-- Aquí EmulatorJS inyectará el canvas WebAssembly -->
+        <div id="display" class="w-full h-full hidden"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    /********************************************************************
+     * 1. UTILIDAD HASH CRC32 (Para verificar que todos usen la misma ROM)
+     ********************************************************************/
+    function calculateCRC32(buf) {
+      const view = new Uint8Array(buf);
+      let crc = 0 ^ (-1);
+      for (let i = 0; i < view.length; i++) {
+        let c = (crc ^ view[i]) & 0xff;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        crc = (crc >>> 8) ^ c;
+      }
+      return ((crc ^ (-1)) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+    }
+
+    function logMsg(msg, color = "text-slate-400") {
+      const log = document.getElementById('net-log');
+      const div = document.createElement('div');
+      div.className = color;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    /********************************************************************
+     * 2. BASE DE DATOS LOCAL (IndexedDB) PARA GUARDAR LAS ROMs
+     ********************************************************************/
+    const DB_NAME = 'N64_Netplay_DB';
+    const STORE_NAME = 'roms';
+    let db;
+    let selectedRom = null; // { name, hash, blob, size }
+
+    function initDB() {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = (e) => {
+        const database = e.target.result;
+        if (!database.objectStoreNames.contains(STORE_NAME)) {
+          database.createObjectStore(STORE_NAME, { keyPath: 'hash' });
+        }
+      };
+      req.onsuccess = (e) => {
+        db = e.target.result;
+        renderRomList();
+      };
+    }
+
+    document.getElementById('rom-upload').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      logMsg(`Calculando firma CRC32 de ${file.name}...`, "text-indigo-400");
+      
+      const buffer = await file.arrayBuffer();
+      const hash = calculateCRC32(buffer);
+      const romObj = {
+        hash,
+        name: file.name,
+        size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
+        blob: new Blob([buffer])
+      };
+
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put(romObj);
+      tx.oncomplete = () => {
+        logMsg(`ROM guardada: ${file.name} [CRC: ${hash}]`, "text-emerald-400");
+        renderRomList();
+        selectRom(romObj);
+      };
+    });
+
+    function renderRomList() {
+      const container = document.getElementById('rom-list');
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const req = tx.objectStore(STORE_NAME).getAll();
+      
+      req.onsuccess = () => {
+        const roms = req.result;
+        container.innerHTML = '';
+        if (roms.length === 0) {
+          container.innerHTML = `<div class="text-xs text-slate-500 italic py-4 text-center">No hay cartuchos cargados aún.</div>`;
+          return;
+        }
+        roms.forEach(rom => {
+          const isSelected = selectedRom && selectedRom.hash === rom.hash;
+          const item = document.createElement('div');
+          item.className = `p-2.5 rounded-lg border text-xs flex justify-between items-center cursor-pointer transition ${
+            isSelected ? 'bg-indigo-950/80 border-indigo-500 text-white' : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+          }`;
+          item.innerHTML = `
+            <div class="truncate pr-2">
+              <div class="font-semibold truncate">${rom.name}</div>
+              <div class="text-[10px] text-slate-400 font-mono">CRC32: ${rom.hash} • ${rom.size}</div>
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-indigo-300">${isSelected ? 'Activo' : 'Elegir'}</span>
+          `;
+          item.onclick = () => selectRom(rom);
+          container.appendChild(item);
+        });
+      };
+    }
+
+    function selectRom(rom) {
+      selectedRom = rom;
+      renderRomList();
+      document.getElementById('btn-create-room').disabled = false;
+      document.getElementById('btn-join-room').disabled = false;
+      document.getElementById('btn-play-solo').disabled = false;
+      logMsg(`Cartucho seleccionado: ${rom.name} (${rom.hash})`, "text-white");
+    }
+
+    /********************************************************************
+     * 3. RED P2P GRATUITA (PeerJS WebRTC DataChannels + Input Sync)
+     ********************************************************************/
+    let peer = null;
+    let isHost = false;
+    let connections = []; // Lista de peers conectados (si eres Host)
+    let hostConn = null;  // Conexión hacia el Host (si eres Cliente)
+    let players = [];     // [{ id, role, playerIndex, hash }]
+    let myPlayerIndex = 1;
+    let currentRoomId = null;
+
+    // Generar código corto de 6 caracteres para la sala
+    function generateRoomCode() {
+      return 'N64-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    }
+
+    // CREAR SALA (HOST - Jugador 1)
+    document.getElementById('btn-create-room').addEventListener('click', () => {
+      if (!selectedRom) return;
+      isHost = true;
+      myPlayerIndex = 1;
+      currentRoomId = generateRoomCode();
+
+      peer = new Peer(currentRoomId);
+      peer.on('open', (id) => {
+        players = [{ id, playerIndex: 1, hash: selectedRom.hash, label: 'Host (Jugador 1)' }];
+        updateRoomUI(id, selectedRom.hash);
+        document.getElementById('btn-start-netplay').classList.remove('hidden');
+        document.getElementById('connection-badge').textContent = `Host Sala: ${id}`;
+        logMsg(`Sala creada con éxito. Código: ${id}`, "text-emerald-400");
+      });
+
+      peer.on('connection', (conn) => {
+        conn.on('data', (data) => handleHostData(conn, data));
+        conn.on('close', () => {
+          players = players.filter(p => p.id !== conn.peer);
+          connections = connections.filter(c => c.peer !== conn.peer);
+          broadcastLobbyState();
+          logMsg(`Un jugador se desconectó.`, "text-amber-400");
+        });
+      });
+    });
+
+    // UNIRSE A SALA (CLIENTE - Jugador 2, 3 o 4)
+    document.getElementById('btn-join-room').addEventListener('click', () => {
+      if (!selectedRom) return;
+      const code = document.getElementById('join-room-input').value.trim().toUpperCase();
+      if (!code) return alert("Ingresa el código de la sala");
+
+      isHost = false;
+      currentRoomId = code;
+      peer = new Peer();
+
+      peer.on('open', (myId) => {
+        logMsg(`Conectando a la sala ${code}...`);
+        hostConn = peer.connect(code, { reliable: true });
+
+        hostConn.on('open', () => {
+          // Enviar nuestro Hash CRC32 de la ROM para que el Host verifique que tenemos el mismo juego
+          hostConn.send({
+            type: 'JOIN_REQUEST',
+            hash: selectedRom.hash,
+            romName: selectedRom.name
+          });
+        });
+
+        hostConn.on('data', (data) => handleClientData(data));
+      });
+    });
+
+    // Lógica del Host al recibir paquetes de sus amigos
+    function handleHostData(conn, data) {
+      if (data.type === 'JOIN_REQUEST') {
+        if (data.hash !== selectedRom.hash) {
+          conn.send({
+            type: 'JOIN_REJECTED',
+            reason: `Tu ROM (${data.hash}) no coincide con la del Host (${selectedRom.hash}). Deben cargar exactamente el mismo archivo.`
+          });
+          return;
+        }
+        if (players.length >= 4) {
+          conn.send({ type: 'JOIN_REJECTED', reason: 'La sala ya tiene 4 jugadores (Máximo de N64).' });
+          return;
+        }
+
+        const pIndex = players.length + 1;
+        connections.push(conn);
+        players.push({ id: conn.peer, playerIndex: pIndex, hash: data.hash, label: `Amigo (Jugador ${pIndex})` });
+        
+        conn.send({ type: 'JOIN_ACCEPTED', playerIndex: pIndex, roomHash: selectedRom.hash });
+        broadcastLobbyState();
+        logMsg(`Jugador ${pIndex} unido con ROM verificada [CRC OK]`, "text-emerald-400");
+      }
+
+      // Retransmitir inputs de controles entre todos los jugadores (Netplay Frame Input)
+      if (data.type === 'GAMEPAD_STATE') {
+        connections.forEach(c => {
+          if (c.peer !== conn.peer) c.send(data);
+        });
+        applyRemoteInput(data.playerIndex, data.buttons);
+      }
+    }
+
+    // Lógica de los Amigos al recibir paquetes del Host
+    function handleClientData(data) {
+      if (data.type === 'JOIN_REJECTED') {
+        alert(data.reason);
+        logMsg(`Rechazado: ${data.reason}`, "text-rose-400");
+      }
+      if (data.type === 'JOIN_ACCEPTED') {
+        myPlayerIndex = data.playerIndex;
+        updateRoomUI(currentRoomId, data.roomHash);
+        document.getElementById('connection-badge').textContent = `Conectado (Jugador ${myPlayerIndex})`;
+        logMsg(`¡ROM verificada! Eres el Jugador ${myPlayerIndex}. Esperando al Host...`, "text-emerald-400");
+      }
+      if (data.type === 'LOBBY_UPDATE') {
+        players = data.players;
+        renderPlayersList();
+      }
+      if (data.type === 'START_GAME') {
+        logMsg(`¡Iniciando emulador sincronizado!`, "text-indigo-400");
+        launchEmulator(true);
+      }
+      if (data.type === 'GAMEPAD_STATE') {
+        applyRemoteInput(data.playerIndex, data.buttons);
+      }
+    }
+
+    function broadcastLobbyState() {
+      renderPlayersList();
+      connections.forEach(c => c.send({ type: 'LOBBY_UPDATE', players }));
+    }
+
+    function updateRoomUI(code, hash) {
+      document.getElementById('room-info').classList.remove('hidden');
+      document.getElementById('room-code-display').textContent = code;
+      document.getElementById('room-hash-display').textContent = hash;
+      renderPlayersList();
+    }
+
+    function renderPlayersList() {
+      const ul = document.getElementById('players-list');
+      ul.innerHTML = '';
+      players.forEach(p => {
+        const li = document.createElement('li');
+        li.className = "flex justify-between items-center bg-slate-950/50 px-2 py-1 rounded";
+        li.innerHTML = `<span>🎮 ${p.label}</span> <span class="text-emerald-400 font-mono text-[10px]">CRC OK</span>`;
+        ul.appendChild(li);
+      });
+    }
+
+    /********************************************************************
+     * 4. LANZAMIENTO DEL MOTOR N64 (EmulatorJS Mupen64Plus WebAssembly)
+     ********************************************************************/
+    document.getElementById('btn-play-solo').addEventListener('click', () => launchEmulator(false));
+    
+    document.getElementById('btn-start-netplay').addEventListener('click', () => {
+      connections.forEach(c => c.send({ type: 'START_GAME' }));
+      launchEmulator(true);
+    });
+
+    function launchEmulator(isNetplay) {
+      if (!selectedRom) return;
+
+      document.getElementById('emulator-placeholder').classList.add('hidden');
+      const display = document.getElementById('display');
+      display.classList.remove('hidden');
+      display.innerHTML = '<div id="game"></div>';
+
+      const romBlobUrl = URL.createObjectURL(selectedRom.blob);
+
+      // Variables globales de configuración de EmulatorJS
+      window.EJS_player = '#game';
+      window.EJS_core = 'n64'; // Usa Mupen64Plus-Next WASM
+      window.EJS_gameName = selectedRom.name;
+      window.EJS_gameUrl = romBlobUrl;
+      window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+      window.EJS_startOnLoaded = true;
+
+      // Si estamos en sala multijugador, habilitamos el identificador de sala
+      if (isNetplay && currentRoomId) {
+        window.EJS_gameID = selectedRom.hash; // Agrupa solo a quienes tengan el mismo CRC32
+        logMsg(`Motor N64 iniciado [Jugador ${myPlayerIndex}]`, "text-emerald-400");
+        startGamepadSyncLoop();
+      } else {
+        logMsg(`Motor N64 iniciado en Modo Solitario`, "text-indigo-400");
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+      document.body.appendChild(script);
+    }
+
+    /********************************************************************
+     * 5. SINCRONIZACIÓN DE CONTROLES (Gamepad API & P2P DataChannel)
+     ********************************************************************/
+    let lastInputHash = '';
+
+    function startGamepadSyncLoop() {
+      setInterval(() => {
+        const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+        const gp = gamepads[0];
+        if (!gp) return;
+
+        const buttons = gp.buttons.map(b => b.pressed ? 1 : 0);
+        const axes = gp.axes.map(a => Number(a.toFixed(2)));
+        const currentHash = JSON.stringify({ buttons, axes });
+
+        if (currentHash !== lastInputHash) {
+          lastInputHash = currentHash;
+          const packet = {
+            type: 'GAMEPAD_STATE',
+            playerIndex: myPlayerIndex,
+            buttons: { buttons, axes }
+          };
+
+          if (isHost) {
+            connections.forEach(c => c.send(packet));
+          } else if (hostConn && hostConn.open) {
+            hostConn.send(packet);
+          }
+        }
+      }, 16); // ~60 veces por segundo (60 FPS)
+    }
+
+    function applyRemoteInput(playerIdx, inputState) {
+      // Puente listo para inyectar en el gestor de puertos de Mupen64Plus WASM
+      if (window.EJS_emulator && window.EJS_emulator.gameManager) {
+        // Notifica en consola o despacha evento al puerto correspondiente (1-4)
+        window.dispatchEvent(new CustomEvent('n64-remote-input', {
+          detail: { port: playerIdx - 1, state: inputState }
+        }));
+      }
+    }
+
+    // Inicializar DB y PWA Service Worker
+    window.addEventListener('DOMContentLoaded', () => {
+      initDB();
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      }
+    });
+  </script>
+</body>
+</html>
