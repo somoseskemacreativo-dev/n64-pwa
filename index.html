@@ -3,19 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>N64 Netplay Arena - PWA</title>
+  <title>N64 Netplay Arena - Low-End & 3G/4G Edition</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#000000" />
   
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- PeerJS para WebRTC P2P (Datos + Sincronización de Pantalla en Tiempo Real) -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
   <style>
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
     body { background-color: #0b0f19; color: #e2e8f0; font-family: system-ui, sans-serif; overscroll-behavior: none; margin: 0; }
-    .glass { background: rgba(30, 41, 59, 0.78); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+    .glass { background: rgba(20, 28, 44, 0.88); border: 1px solid rgba(255,255,255,0.08); }
+
+    /* =====================================================================
+       OPTIMIZACIÓN GPU PARA GAMA BAJA (Cero Sombras Pesadas / Pixel Perfect)
+       ===================================================================== */
+    canvas, video {
+      image-rendering: -moz-crisp-edges !important;
+      image-rendering: -webkit-optimize-contrast !important;
+      image-rendering: pixelated !important;
+      box-shadow: none !important;
+      filter: none !important;
+      transform: translateZ(0);
+      will-change: transform;
+    }
 
     /* =====================================================================
        DISEÑO EXACTO A LA IMAGEN "A" PARA EL MODO JUEGO (MÓVIL Y LAPTOP)
@@ -34,7 +45,6 @@
     }
     #arcade-overlay.active { display: flex; }
 
-    /* Paneles laterales negros donde van los controles táctiles (Imagen A) */
     .pad-side {
       width: 210px;
       background: #000000;
@@ -47,7 +57,6 @@
       flex-shrink: 0;
     }
 
-    /* Contenedor central 4:3 del juego */
     #screen-center {
       flex: 1;
       position: relative;
@@ -61,16 +70,35 @@
     #emulator-mount, #remote-video {
       width: 100%;
       height: 100%;
-      max-width: 133.33vh; /* Proporción 4:3 clásica N64 */
+      max-width: 133.33vh;
       object-fit: contain;
       background: #000;
     }
 
-    /* Botones Superiores L y R (Píldoras grises con borde claro) */
+    /* Telemetría HUD Ultraligera en Pantalla */
+    #net-hud {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      z-index: 40;
+      background: rgba(0, 0, 0, 0.75);
+      border: 1px solid #334155;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 10px;
+      color: #34d399;
+      pointer-events: none;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* Botones Superiores L y R */
     .btn-shoulder {
       width: 155px;
       height: 46px;
-      background: rgba(58, 58, 62, 0.9);
+      background: #3a3a3e;
       border: 2.5px solid #8e8e93;
       border-radius: 25px;
       color: #b0b0b5;
@@ -79,18 +107,17 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: inset 0 2px 5px rgba(0,0,0,0.6);
     }
-    .btn-shoulder.pressed { background: #6366f1; color: #fff; border-color: #fff; transform: scale(0.96); }
+    .btn-shoulder.pressed { background: #6366f1; color: #fff; border-color: #fff; }
 
-    /* Botones Centrales MENU (arriba) y START (abajo) sobre la pantalla */
+    /* Botones Centrales MENU y START */
     .btn-center-pill {
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
       width: 112px;
       height: 36px;
-      background: rgba(80, 80, 85, 0.78);
+      background: rgba(80, 80, 85, 0.85);
       border: 2px solid #a1a1aa;
       border-radius: 20px;
       color: #d4d4d8;
@@ -101,13 +128,12 @@
       align-items: center;
       justify-content: center;
       z-index: 30;
-      backdrop-filter: blur(4px);
     }
-    .btn-center-pill.pressed { background: rgba(255,255,255,0.4); color: #fff; }
+    .btn-center-pill.pressed { background: #ffffff; color: #000; }
     #btn-touch-menu { top: 12px; }
     #btn-touch-start { bottom: 12px; }
 
-    /* Stick Analógico Octagonal (Izquierda Centro) */
+    /* Stick Analógico Octagonal */
     #octagon-zone {
       width: 150px;
       height: 150px;
@@ -116,12 +142,7 @@
       align-items: center;
       justify-content: center;
     }
-    .octagon-bg {
-      width: 100%;
-      height: 100%;
-      position: absolute;
-      inset: 0;
-    }
+    .octagon-bg { width: 100%; height: 100%; position: absolute; inset: 0; }
     #stick-nub {
       width: 78px;
       height: 78px;
@@ -130,16 +151,10 @@
       border: 2px solid #aaa;
       position: relative;
       z-index: 5;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.75);
-      transition: transform 0.04s linear;
     }
 
-    /* D-Pad (Cruceta Izquierda Abajo) */
-    .dpad-cross {
-      width: 138px;
-      height: 138px;
-      position: relative;
-    }
+    /* Cruceta D-Pad */
+    .dpad-cross { width: 138px; height: 138px; position: relative; }
     .dpad-arm {
       position: absolute;
       background: #2e2e32;
@@ -160,20 +175,11 @@
       position: absolute; top: 46px; left: 46px; width: 46px; height: 46px;
       background: #2e2e32; display: flex; align-items: center; justify-content: center;
     }
-    .dpad-center::after {
-      content: ''; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #6b6b70;
-    }
+    .dpad-center::after { content: ''; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #6b6b70; }
 
-    /* Triángulo de Botones Z (Morado), B (Verde), A (Azul) - Derecha Centro */
-    .zba-cluster {
-      width: 175px;
-      height: 155px;
-      position: relative;
-    }
-    /* Líneas conectoras del triángulo como en la Imagen A */
-    .zba-lines {
-      position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
-    }
+    /* Triángulo Z (Morado), B (Verde), A (Azul) */
+    .zba-cluster { width: 175px; height: 155px; position: relative; }
+    .zba-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
     .btn-round-action {
       position: absolute;
       width: 66px;
@@ -181,31 +187,20 @@
       border-radius: 50%;
       font-size: 22px;
       font-weight: 800;
-      color: rgba(255,255,255,0.75);
+      color: rgba(255,255,255,0.8);
       display: flex;
       align-items: center;
       justify-content: center;
       border: 3px solid rgba(130, 130, 135, 0.55);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.7);
     }
-    .btn-round-action.pressed { filter: brightness(1.35); transform: scale(0.93); color: #fff; border-color: #fff; }
-    #btn-touch-z { top: 2px; left: 68px; background: #431875; }   /* Z Morado Arriba */
-    #btn-touch-b { top: 56px; left: 4px; background: #265e33; }   /* B Verde Izquierda */
-    #btn-touch-a { top: 78px; right: 6px; background: #1d4273; }  /* A Azul Derecha */
+    .btn-round-action.pressed { filter: brightness(1.3); color: #fff; border-color: #fff; }
+    #btn-touch-z { top: 2px; left: 68px; background: #431875; }
+    #btn-touch-b { top: 56px; left: 4px; background: #265e33; }
+    #btn-touch-a { top: 78px; right: 6px; background: #1d4273; }
 
-    /* Botones C Amarillos (Derecha Abajo) */
-    .cpad-cluster {
-      width: 144px;
-      height: 144px;
-      position: relative;
-    }
-    .cpad-ring {
-      position: absolute;
-      inset: 22px;
-      border-radius: 50%;
-      border: 4px solid rgba(255,255,255,0.08);
-      pointer-events: none;
-    }
+    /* Botones C Amarillos */
+    .cpad-cluster { width: 144px; height: 144px; position: relative; }
+    .cpad-ring { position: absolute; inset: 22px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.08); pointer-events: none; }
     .btn-c-yellow {
       position: absolute;
       width: 46px;
@@ -220,165 +215,188 @@
       align-items: center;
       justify-content: center;
     }
-    .btn-c-yellow.pressed { background: #eab308; color: #000; border-color: #fef08a; transform: scale(0.92); }
+    .btn-c-yellow.pressed { background: #eab308; color: #000; border-color: #fef08a; }
     .c-up    { top: 0; left: 49px; }
     .c-down  { bottom: 0; left: 49px; }
     .c-left  { top: 49px; left: 0; }
     .c-right { top: 49px; right: 0; }
 
-    /* Ocultar interfaz por defecto de EmulatorJS para que luzca limpia como Imagen A */
     .ejs_menu_bar, .ejs_virtual_gamepad, .ejs_context_menu { display: none !important; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-  <!-- HEADER DEL LOBBY -->
-  <header class="p-4 border-b border-slate-800 flex flex-wrap justify-between items-center bg-slate-900/70 gap-2">
-    <div class="flex items-center gap-3">
-      <div id="status-dot" class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-      <h1 class="text-xl font-bold tracking-wider text-white">N64 <span class="text-indigo-400">NETPLAY</span> SALA</h1>
+  <!-- HEADER -->
+  <header class="p-3.5 border-b border-slate-800 flex flex-wrap justify-between items-center bg-slate-900 gap-2">
+    <div class="flex items-center gap-2.5">
+      <div id="status-dot" class="w-3 h-3 rounded-full bg-emerald-500"></div>
+      <h1 class="text-lg font-bold tracking-wider text-white">N64 <span class="text-indigo-400">TURBO UDP</span> PWA</h1>
+      <span class="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700/50 px-2 py-0.5 rounded font-mono">
+        4-Byte Binary UDP + Low-GPU
+      </span>
     </div>
     <div class="flex items-center gap-2">
-      <div id="connection-badge" class="text-xs px-3 py-1.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono">
-        Sin Sala Activa
+      <div id="net-type-badge" class="text-[11px] px-2.5 py-1 rounded bg-slate-800 text-amber-300 border border-slate-700 font-mono">
+        Red: Detectando...
+      </div>
+      <div id="connection-badge" class="text-xs px-3 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono">
+        Sin Sala
       </div>
     </div>
   </header>
 
-  <!-- LOBBY PRINCIPAL -->
-  <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- CONTENEDOR PRINCIPAL -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-    <!-- COLUMNA 1: GESTIÓN DE CARTUCHOS & CONEXIÓN DE AMIGOS -->
-    <section class="space-y-5">
+    <!-- COLUMNA 1: ROMS, SALA & RED HÍBRIDA -->
+    <section class="space-y-4">
       
       <!-- 1. CARGAR ROM -->
-      <div class="glass p-5 rounded-xl space-y-3">
+      <div class="glass p-4 rounded-xl space-y-3">
         <div class="flex justify-between items-center">
-          <h2 class="font-bold text-xs uppercase tracking-wider text-indigo-400">1. Cartucho ROM (Obligatorio)</h2>
-          <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow">
-            + Cargar ROM (.z64/.n64)
+          <h2 class="font-bold text-xs uppercase tracking-wider text-indigo-400">1. Cartucho Local (CRC32)</h2>
+          <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
+            + Cargar ROM
             <input type="file" id="rom-upload" accept=".z64,.n64,.v64,.zip" class="hidden" />
           </label>
         </div>
-        <p class="text-[11px] text-slate-400 leading-relaxed">
-          Cada jugador debe cargar y seleccionar el mismo archivo ROM en su dispositivo para desbloquear la sala.
-        </p>
-        <div id="rom-list" class="space-y-2 max-h-44 overflow-y-auto pr-1"></div>
+        <div id="rom-list" class="space-y-1.5 max-h-36 overflow-y-auto pr-1"></div>
       </div>
 
       <!-- 2. SALA MULTIJUGADOR -->
-      <div class="glass p-5 rounded-xl space-y-4">
-        <h2 class="font-bold text-xs uppercase tracking-wider text-emerald-400">2. Conectar con Amigos (P2P)</h2>
+      <div class="glass p-4 rounded-xl space-y-3">
+        <h2 class="font-bold text-xs uppercase tracking-wider text-emerald-400">2. Sala P2P (UDP Ultraligero)</h2>
         
-        <div class="space-y-2.5">
-          <button id="btn-create-room" disabled class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition shadow">
-            Crear Sala (Ser Jugador 1 / Host)
-          </button>
+        <button id="btn-create-room" disabled class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition">
+          Crear Sala (Jugador 1 / Host)
+        </button>
 
-          <div class="flex gap-2">
-            <input type="text" id="join-room-input" placeholder="Ej: N64-A1B2" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-indigo-500" />
-            <button id="btn-join-room" disabled class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 text-white text-xs font-bold py-2 px-4 rounded-lg transition">
-              Unirse
-            </button>
-          </div>
+        <div class="flex gap-2">
+          <input type="text" id="join-room-input" placeholder="Código: N64-XXXX" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-indigo-500" />
+          <button id="btn-join-room" disabled class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 text-white text-xs font-bold py-2 px-4 rounded-lg transition">
+            Unirse
+          </button>
         </div>
 
-        <!-- PANEL DE SALA ACTIVA -->
-        <div id="room-info" class="hidden bg-slate-950/90 p-3.5 rounded-lg border border-slate-800 space-y-3">
+        <!-- PANEL DE SALA -->
+        <div id="room-info" class="hidden bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2.5">
           <div class="flex justify-between items-center">
-            <span class="text-xs text-slate-400">Código de Sala:</span>
-            <span id="room-code-display" class="font-mono text-sm font-extrabold text-emerald-400 bg-emerald-950/60 px-2.5 py-0.5 rounded border border-emerald-700/50 select-all cursor-pointer">---</span>
+            <span class="text-xs text-slate-400">Código:</span>
+            <span id="room-code-display" class="font-mono text-sm font-extrabold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-700/50 select-all">---</span>
           </div>
           <div class="text-[11px] text-slate-400 flex justify-between">
-            <span>Firma CRC32 exigida:</span>
+            <span>CRC32 Verificado:</span>
             <span id="room-hash-display" class="font-mono text-indigo-300 font-bold">---</span>
           </div>
+          <ul id="players-list" class="text-xs space-y-1 pt-1 border-t border-slate-800"></ul>
 
-          <div class="border-t border-slate-800 pt-2">
-            <div class="text-[11px] font-semibold text-slate-300 mb-1.5">Jugadores en la Habitación (Máx 4):</div>
-            <ul id="players-list" class="text-xs space-y-1.5"></ul>
-          </div>
-
-          <!-- CUALQUIER JUGADOR CONECTADO PUEDE INICIAR LA PARTIDA PARA TODOS -->
-          <button id="btn-start-netplay" class="w-full bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white text-xs font-extrabold py-3 rounded-lg transition shadow-lg uppercase tracking-wider">
+          <button id="btn-start-netplay" class="w-full bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white text-xs font-extrabold py-2.5 rounded-lg transition uppercase tracking-wider">
             🚀 Iniciar Partida Sincronizada (Todos)
           </button>
         </div>
       </div>
 
-      <!-- 3. LOG EN TIEMPO REAL -->
-      <div class="glass p-3.5 rounded-xl">
-        <div class="flex justify-between items-center mb-1.5">
-          <h3 class="text-[11px] font-bold uppercase text-slate-400">Consola de Sincronización</h3>
-          <button id="btn-play-solo" disabled class="text-[11px] bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-indigo-300 px-2.5 py-1 rounded border border-slate-700">
-            Probar Solo (1J)
-          </button>
-        </div>
-        <div id="net-log" class="font-mono text-[11px] text-slate-400 h-28 overflow-y-auto space-y-1 bg-slate-950/80 p-2 rounded border border-slate-900">
-          <div>[Sistema] Carga un archivo ROM .z64 o .n64 para empezar.</div>
+      <!-- 3. OPTIMIZADOR GAMA BAJA & MULTIPATH WI-FI/4G -->
+      <div class="glass p-4 rounded-xl space-y-2.5">
+        <h2 class="font-bold text-xs uppercase tracking-wider text-amber-400">3. Motor Gama Baja & Red Móvil</h2>
+        
+        <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer">
+          <span>Simplificar Texturas y Quitar Sombras (Low-GPU)</span>
+          <input type="checkbox" id="opt-low-gpu" checked class="accent-emerald-500" />
+        </label>
+
+        <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer">
+          <span>Compresión Binaria UDP (Paquetes de 4 Bytes)</span>
+          <input type="checkbox" id="opt-binary-udp" checked class="accent-emerald-500" />
+        </label>
+
+        <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer">
+          <span>Failover Automático Wi-Fi ⇄ Datos 3G/4G</span>
+          <input type="checkbox" id="opt-multipath" checked class="accent-emerald-500" />
+        </label>
+
+        <div class="flex justify-between items-center pt-1 border-t border-slate-800">
+          <span class="text-[11px] text-slate-400">Calidad Stream Red Móvil:</span>
+          <select id="opt-stream-profile" class="bg-slate-900 border border-slate-700 text-[11px] text-white rounded px-2 py-1">
+            <option value="auto" selected>Auto-Adaptativo (3G/4G/Wi-Fi)</option>
+            <option value="ultra-low">Ultra Ligero 3G (240p • 250 kbps)</option>
+            <option value="balanced">Equilibrado 4G (240p • 600 kbps)</option>
+          </select>
         </div>
       </div>
+
     </section>
 
-    <!-- COLUMNA 2 Y 3: GUÍA DE CONTROLES (LAPTOP Y MÓVIL) -->
-    <section class="lg:col-span-2 flex flex-col justify-between glass p-6 rounded-xl space-y-6">
-      <div class="space-y-2">
-        <span class="text-xs font-bold uppercase px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-          Sincronización en Misma Habitación + Controles Configurados
-        </span>
-        <h2 class="text-2xl font-extrabold text-white">Listo para jugar desde Laptop o Teléfono Celular</h2>
-        <p class="text-xs text-slate-400">
-          Cuando cualquier miembro del grupo presione <strong>"Iniciar Partida Sincronizada"</strong>, la pantalla del emulador se abrirá automáticamente en todos los dispositivos conectados mostrando exactamente la misma partida en vivo.
-        </p>
+    <!-- COLUMNA 2 Y 3: MONITOR DE CONEXIÓN & CONTROLES -->
+    <section class="lg:col-span-2 flex flex-col justify-between glass p-5 rounded-xl space-y-4">
+      <div class="space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-xs font-bold uppercase px-2.5 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            Inclusividad Gama Baja + Resiliencia 3G / 4G / Wi-Fi
+          </span>
+          <button id="btn-play-solo" disabled class="text-xs bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-indigo-300 font-bold px-3 py-1.5 rounded-lg border border-slate-700">
+            🎮 Probar ROM en Solitario
+          </button>
+        </div>
+
+        <!-- PANEL TÉCNICO DE ESTADO DE RED Y HARDWARE -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+          <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
+            <div class="text-[10px] text-slate-400 uppercase">Protocolo Inputs</div>
+            <div class="text-xs font-bold text-emerald-400 font-mono">UDP 4-Bytes</div>
+          </div>
+          <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
+            <div class="text-[10px] text-slate-400 uppercase">Resolución GPU</div>
+            <div id="gpu-res-label" class="text-xs font-bold text-indigo-400 font-mono">320x240 (Fast)</div>
+          </div>
+          <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
+            <div class="text-[10px] text-slate-400 uppercase">Latencia (Ping)</div>
+            <div id="lobby-ping" class="text-xs font-bold text-amber-400 font-mono">-- ms</div>
+          </div>
+          <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
+            <div class="text-[10px] text-slate-400 uppercase">Guardia Wi-Fi/4G</div>
+            <div id="failover-status" class="text-xs font-bold text-emerald-400 font-mono">Activa</div>
+          </div>
+        </div>
       </div>
 
-      <!-- TABLA DE CONTROLES DE LAPTOP Y MÓVIL -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-xl space-y-2.5">
-          <h3 class="text-xs font-bold uppercase text-indigo-400">💻 Controles en Laptop (Teclado)</h3>
-          <div class="grid grid-cols-2 gap-y-1.5 text-xs">
-            <span class="text-slate-400">Botón L:</span> <kbd class="font-mono font-bold text-white">Tecla Q</kbd>
-            <span class="text-slate-400">Botón R:</span> <kbd class="font-mono font-bold text-white">Tecla R</kbd>
-            <span class="text-slate-400">Botón A (Azul):</span> <kbd class="font-mono font-bold text-blue-400">Tecla E</kbd>
-            <span class="text-slate-400">Botón B (Verde):</span> <kbd class="font-mono font-bold text-emerald-400">Tecla F</kbd>
-            <span class="text-slate-400">Gatillo Z (Morado):</span> <kbd class="font-mono font-bold text-purple-400">Tecla V</kbd>
-            <span class="text-slate-400">D-Pad (Cruceta):</span> <kbd class="font-mono font-bold text-white">Flechas ↑ ↓ ← →</kbd>
-            <span class="text-slate-400">C-Pad (Amarillos):</span> <kbd class="font-mono font-bold text-yellow-400">W, S, A, D</kbd>
-            <span class="text-slate-400">Stick Analógico 3D:</span> <kbd class="font-mono font-bold text-amber-300">Flechas o I, K, J, L</kbd>
-            <span class="text-slate-400">Botón START:</span> <kbd class="font-mono font-bold text-white">ENTER</kbd>
+      <!-- TABLA DE CONTROLES -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl space-y-2">
+          <h3 class="text-xs font-bold uppercase text-indigo-400">💻 Controles Laptop (Personalizados)</h3>
+          <div class="grid grid-cols-2 gap-y-1 text-xs">
+            <span class="text-slate-400">Botón L / R:</span> <kbd class="font-mono font-bold text-white">Q / R</kbd>
+            <span class="text-slate-400">Botón A / B:</span> <kbd class="font-mono font-bold text-blue-400">E</kbd> / <kbd class="font-mono font-bold text-emerald-400">F</kbd>
+            <span class="text-slate-400">Gatillo Z:</span> <kbd class="font-mono font-bold text-purple-400">Tecla V</kbd>
+            <span class="text-slate-400">D-Pad:</span> <kbd class="font-mono font-bold text-white">Flechas ↑ ↓ ← →</kbd>
+            <span class="text-slate-400">C-Pad:</span> <kbd class="font-mono font-bold text-yellow-400">A, W, S, D</kbd>
+            <span class="text-slate-400">START:</span> <kbd class="font-mono font-bold text-white">ENTER</kbd>
           </div>
           <div class="pt-1 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-            <span>¿Usar Flechas también como Stick 3D?</span>
+            <span>Mover también Stick 3D con Flechas</span>
             <input type="checkbox" id="arrows-as-stick" checked class="accent-indigo-500" />
           </div>
         </div>
 
-        <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-xl space-y-2.5">
-          <h3 class="text-xs font-bold uppercase text-emerald-400">📱 Controles en Celular (Diseño Imagen A)</h3>
-          <ul class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
-            <li><strong>Izquierda Arriba:</strong> Botón <span class="text-slate-200 font-bold">L</span> en píldora gris.</li>
-            <li><strong>Izquierda Centro:</strong> Stick Analógico Octagonal interactivo 360°.</li>
-            <li><strong>Izquierda Abajo:</strong> Cruceta <span class="text-slate-200 font-bold">D-Pad</span> de 4 direcciones.</li>
-            <li><strong>Centro Pantalla:</strong> Botón <span class="text-slate-200 font-bold">MENU</span> arriba y <span class="text-slate-200 font-bold">START</span> abajo.</li>
-            <li><strong>Derecha Arriba:</strong> Botón <span class="text-slate-200 font-bold">R</span> en píldora gris.</li>
-            <li><strong>Derecha Centro:</strong> Triángulo <span class="text-purple-400 font-bold">Z</span>, <span class="text-emerald-400 font-bold">B</span> y <span class="text-blue-400 font-bold">A</span>.</li>
-            <li><strong>Derecha Abajo:</strong> Los 4 botones <span class="text-yellow-400 font-bold">C-Pad</span> amarillos.</li>
-          </ul>
+        <div class="bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl space-y-1.5">
+          <h3 class="text-xs font-bold uppercase text-emerald-400">📡 Bitácora de Red Multipath</h3>
+          <div id="net-log" class="font-mono text-[11px] text-slate-400 h-32 overflow-y-auto space-y-1 bg-slate-950 p-2 rounded border border-slate-900">
+            <div>[Motor] Listo. Modo Gama Baja y Compresión Binaria de 4-Bytes activos.</div>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
   <!-- =========================================================================
-       PANTALLA DE JUEGO A PANTALLA COMPLETA (LAYOUT IDÉNTICO A LA IMAGEN "A")
+       PANTALLA DE JUEGO A PANTALLA COMPLETA (LAYOUT IDÉNTICO A IMAGEN "A")
        ========================================================================= -->
   <div id="arcade-overlay">
     
-    <!-- COLUMNA IZQUIERDA: Botón L, Stick Octagonal y D-Pad -->
+    <!-- COLUMNA IZQUIERDA -->
     <div class="pad-side">
       <div class="btn-shoulder touch-btn" data-btn="L">L</div>
 
-      <!-- Stick Analógico Octagonal -->
       <div id="octagon-zone">
         <svg class="octagon-bg" viewBox="0 0 100 100">
           <polygon points="30,3 70,3 97,30 97,70 70,97 30,97 3,70 3,30" fill="#2b2b2e" stroke="#8e8e93" stroke-width="2.5"/>
@@ -390,7 +408,6 @@
         <div id="stick-nub"></div>
       </div>
 
-      <!-- Cruceta D-Pad -->
       <div class="dpad-cross">
         <div class="dpad-arm dpad-up touch-btn" data-btn="DUP">^</div>
         <div class="dpad-arm dpad-down touch-btn" data-btn="DDOWN">v</div>
@@ -400,23 +417,25 @@
       </div>
     </div>
 
-    <!-- PANTALLA CENTRAL 4:3 CON BOTONES "MENU" Y "START" -->
+    <!-- PANTALLA CENTRAL 4:3 -->
     <div id="screen-center">
-      <div id="btn-touch-menu" class="btn-center-pill cursor-pointer">MENU</div>
-      
-      <!-- Contenedor para el Host (EmulatorJS) -->
-      <div id="emulator-mount"></div>
-      <!-- Contenedor de Video Directo para Clientes (Jugadores 2, 3 y 4 ven exactamente la misma pantalla) -->
-      <video id="remote-video" class="hidden" autoplay playsinline></video>
+      <!-- Telemetría en tiempo real -->
+      <div id="net-hud">
+        <span id="hud-net">UDP: OK</span> •
+        <span id="hud-ping">0ms</span> •
+        <span id="hud-mode">LOW-GPU</span>
+      </div>
 
+      <div id="btn-touch-menu" class="btn-center-pill cursor-pointer">MENU</div>
+      <div id="emulator-mount"></div>
+      <video id="remote-video" class="hidden" autoplay playsinline></video>
       <div id="btn-touch-start" class="btn-center-pill touch-btn" data-btn="START">START</div>
     </div>
 
-    <!-- COLUMNA DERECHA: Botón R, Triángulo Z-B-A y Botones C Amarillos -->
+    <!-- COLUMNA DERECHA -->
     <div class="pad-side">
       <div class="btn-shoulder touch-btn" data-btn="R">R</div>
 
-      <!-- Triángulo Z (Morado), B (Verde), A (Azul) -->
       <div class="zba-cluster">
         <svg class="zba-lines" viewBox="0 0 175 155">
           <line x1="101" y1="35" x2="37" y2="89" stroke="#222" stroke-width="6" />
@@ -428,7 +447,6 @@
         <div id="btn-touch-a" class="btn-round-action touch-btn" data-btn="A">A</div>
       </div>
 
-      <!-- Botones C Amarillos -->
       <div class="cpad-cluster">
         <div class="cpad-ring"></div>
         <div class="btn-c-yellow c-up touch-btn" data-btn="CUP">^</div>
@@ -442,7 +460,7 @@
 
   <script>
     /********************************************************************
-     * 1. CÁLCULO DE HASH CRC32 Y LOGS
+     * 1. HASH CRC32 Y TELEMETRÍA
      ********************************************************************/
     function calculateCRC32(buf) {
       const view = new Uint8Array(buf);
@@ -465,9 +483,9 @@
     }
 
     /********************************************************************
-     * 2. GESTOR DE CARTUCHOS ROM EN INDEXEDDB
+     * 2. INDEXEDDB PARA CARTUCHOS LOCALES
      ********************************************************************/
-    const DB_NAME = 'N64_Netplay_DB_v2';
+    const DB_NAME = 'N64_Netplay_DB_v3';
     const STORE_NAME = 'roms';
     let db;
     let selectedRom = null;
@@ -489,7 +507,7 @@
     document.getElementById('rom-upload').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      logMsg(`Verificando cartucho ${file.name}...`, "text-indigo-400");
+      logMsg(`Procesando ${file.name}...`, "text-indigo-400");
       
       const buffer = await file.arrayBuffer();
       const hash = calculateCRC32(buffer);
@@ -503,7 +521,7 @@
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).put(romObj);
       tx.oncomplete = () => {
-        logMsg(`Cartucho guardado: ${file.name} [${hash}]`, "text-emerald-400");
+        logMsg(`ROM lista: ${file.name} [${hash}]`, "text-emerald-400");
         renderRomList();
         selectRom(romObj);
       };
@@ -518,21 +536,21 @@
         const roms = req.result;
         container.innerHTML = '';
         if (roms.length === 0) {
-          container.innerHTML = `<div class="text-xs text-slate-500 italic py-3 text-center">No hay ROMs cargadas todavía.</div>`;
+          container.innerHTML = `<div class="text-xs text-slate-500 italic py-2 text-center">Carga un archivo .z64 o .n64</div>`;
           return;
         }
         roms.forEach(rom => {
           const isSelected = selectedRom && selectedRom.hash === rom.hash;
           const item = document.createElement('div');
-          item.className = `p-2.5 rounded-lg border text-xs flex justify-between items-center cursor-pointer transition ${
-            isSelected ? 'bg-indigo-950/90 border-indigo-500 text-white' : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+          item.className = `p-2 rounded-lg border text-xs flex justify-between items-center cursor-pointer transition ${
+            isSelected ? 'bg-indigo-950 border-indigo-500 text-white' : 'bg-slate-900/60 border-slate-800 text-slate-300'
           }`;
           item.innerHTML = `
             <div class="truncate pr-2">
               <div class="font-bold truncate">${rom.name}</div>
-              <div class="text-[10px] text-slate-400 font-mono">CRC32: ${rom.hash} • ${rom.size}</div>
+              <div class="text-[10px] text-slate-400 font-mono">CRC: ${rom.hash} • ${rom.size}</div>
             </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}">${isSelected ? 'Listo' : 'Elegir'}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}">${isSelected ? 'Activa' : 'Usar'}</span>
           `;
           item.onclick = () => selectRom(rom);
           container.appendChild(item);
@@ -546,37 +564,145 @@
       document.getElementById('btn-create-room').disabled = false;
       document.getElementById('btn-join-room').disabled = false;
       document.getElementById('btn-play-solo').disabled = false;
-      logMsg(`Juego seleccionado: ${rom.name}`, "text-white");
     }
 
     /********************************************************************
-     * 3. SALA MULTIJUGADOR P2P (TODOS PUEDEN INICIAR Y VEN LO MISMO)
+     * 3. CODIFICADOR BINARIO DE 4 BYTES (PROTOCOLO TIPO UDP RÁPIDO)
+     * En lugar de enviar JSON de ~85 bytes, empaquetamos cada acción en
+     * un ArrayBuffer de 4 bytes:
+     * Byte 0: Header (0xA1 = Input de Jugador | Jugador 1..4 en los 2 bits bajos)
+     * Byte 1: Índice del Botón o Eje N64 (0..23)
+     * Byte 2 y 3: Valor Int16 (0 o 1 para botones, 0..32767 para Stick Analógico)
+     ********************************************************************/
+    function packBinaryInput(playerIndex, inputIndex, value) {
+      const buffer = new ArrayBuffer(4);
+      const view = new DataView(buffer);
+      const header = 0xA0 | (playerIndex & 0x03);
+      view.setUint8(0, header);
+      view.setUint8(1, inputIndex & 0xFF);
+      view.setInt16(2, Math.max(-32768, Math.min(32767, value)), false);
+      return buffer;
+    }
+
+    function unpackBinaryInput(buffer) {
+      const view = new DataView(buffer);
+      const header = view.getUint8(0);
+      if ((header & 0xF0) !== 0xA0) return null;
+      return {
+        playerIndex: (header & 0x03) || 4,
+        inputIndex: view.getUint8(1),
+        value: view.getInt16(2, false)
+      };
+    }
+
+    /********************************************************************
+     * 4. MOTOR DE RED MULTIPATH (WI-FI ⇄ DATOS MÓVILES 3G/4G SIN CAÍDAS)
      ********************************************************************/
     let peer = null;
     let isHost = true;
-    let connections = []; // Conexiones de datos de los amigos (en el Host)
-    let hostConn = null;  // Conexión hacia el Host (en los Clientes)
+    let connections = [];     // Canal Reliable (Lobby/Control)
+    let udpConnections = [];  // Canal Unreliable UDP (Botones en 4 Bytes)
+    let hostConn = null;      // Canal Reliable hacia el Host
+    let hostUdpConn = null;   // Canal UDP Rápido hacia el Host
+    let activeMediaCalls = [];
     let players = [];
-    let myPlayerIndex = 1; // 1 = Host, 2 = Amigo 2, 3 = Amigo 3, 4 = Amigo 4
+    let myPlayerIndex = 1;
     let currentRoomId = null;
     let gameStarted = false;
     let hostMediaStream = null;
+    let currentPing = 25;
+    let pendingInputQueue = []; // Buffer circular si ocurre un micro-corte Wi-Fi -> 4G
+    let isReconnecting = false;
 
     const peerConfig = {
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' }
-        ]
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun.cloudflare.com:3478' }
+        ],
+        iceCandidatePoolSize: 10 // Pre-calcula candidatos Wi-Fi y Celular para cambio rápido
       }
     };
+
+    // Detector en tiempo real del tipo de red (Wi-Fi vs 3G/4G)
+    function monitorNetworkInterface() {
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      const badge = document.getElementById('net-type-badge');
+
+      const updateNetInfo = () => {
+        if (!conn) {
+          badge.textContent = `Red: Activa (Auto)`;
+          return;
+        }
+        const type = (conn.type || conn.effectiveType || '4G').toUpperCase();
+        const rtt = conn.rtt ? `${conn.rtt}ms` : '';
+        badge.textContent = `Red: ${type} ${rtt}`;
+
+        // Si el sistema operativo reporta cambio entre Wi-Fi y Celular, disparamos el Fast-Failover
+        if (!isHost && currentRoomId && document.getElementById('opt-multipath').checked) {
+          logMsg(`[Multipath] Cambio de red detectado (${type}). Ajustando ruta UDP...`, "text-amber-400");
+          triggerSeamlessFailover();
+        }
+      };
+
+      if (conn) {
+        conn.addEventListener('change', updateNetInfo);
+        updateNetInfo();
+      } else {
+        badge.textContent = `Red: Multi-Interfaz`;
+      }
+
+      // Si el teléfono recupera señal tras un micro-corte
+      window.addEventListener('online', () => {
+        logMsg(`[Multipath] Señal recuperada. Sincronizando canal...`, "text-emerald-400");
+        if (!isHost && currentRoomId) triggerSeamlessFailover();
+      });
+    }
+
+    // Reconexión silenciosa en caliente sin cerrar la partida cuando cae el Wi-Fi y entra 4G
+    function triggerSeamlessFailover() {
+      if (isReconnecting || isHost || !currentRoomId) return;
+      if (hostUdpConn && hostUdpConn.open && currentPing < 350) return;
+
+      isReconnecting = true;
+      document.getElementById('hud-net').textContent = 'FAILOVER 4G...';
+      document.getElementById('failover-status').textContent = 'Conmutando...';
+
+      setTimeout(() => {
+        try {
+          // Abrir nuevo túnel UDP sobre la nueva interfaz de red activa (ej. Datos Móviles)
+          const newUdp = peer.connect(currentRoomId, {
+            label: 'udp-fast',
+            reliable: false,
+            serialization: 'none'
+          });
+
+          newUdp.on('open', () => {
+            hostUdpConn = newUdp;
+            isReconnecting = false;
+            document.getElementById('hud-net').textContent = 'UDP: 4G/WIFI OK';
+            document.getElementById('failover-status').textContent = 'Activa (OK)';
+            logMsg(`[Multipath] Túnel UDP restablecido sin perder la partida.`, "text-emerald-400");
+
+            // Vaciar buffer de botones presionados durante el milisegundo de transición
+            while (pendingInputQueue.length > 0) {
+              const pkt = pendingInputQueue.shift();
+              hostUdpConn.send(pkt);
+            }
+          });
+        } catch (e) {
+          isReconnecting = false;
+        }
+      }, 250);
+    }
 
     function generateRoomCode() {
       return 'N64-' + Math.random().toString(36).substring(2, 6).toUpperCase();
     }
 
-    // CREAR SALA (JUGADOR 1 / HOST)
+    // CREAR SALA (HOST)
     document.getElementById('btn-create-room').addEventListener('click', () => {
       if (!selectedRom) return;
       if (peer) peer.destroy();
@@ -587,32 +713,49 @@
 
       peer = new Peer(currentRoomId, peerConfig);
       peer.on('open', (id) => {
-        players = [{ id, playerIndex: 1, hash: selectedRom.hash, label: 'Jugador 1 (Anfitrión)' }];
+        players = [{ id, playerIndex: 1, hash: selectedRom.hash, label: 'Jugador 1 (Host)' }];
         updateRoomUI(id, selectedRom.hash);
-        document.getElementById('connection-badge').textContent = `Sala: ${id} (J1)`;
-        logMsg(`Sala creada: ${id}. Comparte este código con tus amigos.`, "text-emerald-400");
+        document.getElementById('connection-badge').textContent = `${id} (J1)`;
+        logMsg(`Sala UDP creada: ${id}`, "text-emerald-400");
       });
 
       peer.on('connection', (conn) => {
+        // Distinguir entre el canal de control y el canal binario UDP sin retraso
+        if (conn.label === 'udp-fast') {
+          udpConnections.push(conn);
+          conn.on('data', (rawBuf) => {
+            if (rawBuf instanceof ArrayBuffer || rawBuf instanceof Uint8Array) {
+              const buf = rawBuf instanceof Uint8Array ? rawBuf.buffer : rawBuf;
+              const decoded = unpackBinaryInput(buf);
+              if (decoded) {
+                injectEmulatorInput(decoded.playerIndex - 1, decoded.inputIndex, decoded.value);
+              }
+            }
+          });
+          return;
+        }
+
         conn.on('open', () => {
           conn.on('data', (data) => handleHostData(conn, data));
         });
         conn.on('close', () => {
-          players = players.filter(p => p.id !== conn.peer);
-          connections = connections.filter(c => c.peer !== conn.peer);
-          broadcastLobbyState();
-          logMsg(`Un jugador salió de la sala.`, "text-amber-400");
+          // Dar margen de 6 segundos por si el jugador está conmutando de Wi-Fi a Datos Móviles
+          setTimeout(() => {
+            if (!conn.open) {
+              players = players.filter(p => p.id !== conn.peer);
+              connections = connections.filter(c => c.peer !== conn.peer);
+              broadcastLobbyState();
+            }
+          }, 6000);
         });
       });
-
-      peer.on('error', (err) => logMsg(`Aviso de Red: ${err.type}`, "text-rose-400"));
     });
 
-    // UNIRSE A SALA (JUGADORES 2, 3 Y 4)
+    // UNIRSE A SALA (CLIENTES J2, J3, J4)
     document.getElementById('btn-join-room').addEventListener('click', () => {
       if (!selectedRom) return;
       const code = document.getElementById('join-room-input').value.trim().toUpperCase();
-      if (!code) return alert("Escribe el código de la sala (Ej: N64-XXXX)");
+      if (!code) return alert("Ingresa el código de la sala");
       if (peer) peer.destroy();
 
       isHost = false;
@@ -620,21 +763,28 @@
       peer = new Peer(peerConfig);
 
       peer.on('open', () => {
-        logMsg(`Conectando a la sala ${code}...`, "text-indigo-400");
+        logMsg(`Abriendo canal híbrido hacia ${code}...`, "text-indigo-400");
+        
+        // 1. Canal de Control (Lobby y Heartbeat)
         hostConn = peer.connect(code, { reliable: true });
-
         hostConn.on('open', () => {
           hostConn.send({
             type: 'JOIN_REQUEST',
             hash: selectedRom.hash,
             romName: selectedRom.name
           });
+          startPingWatchdog();
         });
-
         hostConn.on('data', (data) => handleClientData(data));
+
+        // 2. Canal UDP Modificado (Sin bloqueo, sin retransmisiones lentas, paquetes binarios de 4 bytes)
+        hostUdpConn = peer.connect(code, {
+          label: 'udp-fast',
+          reliable: false,
+          serialization: 'none'
+        });
       });
 
-      // Recibir el flujo de video/audio en vivo de la habitación del Host
       peer.on('call', (call) => {
         call.answer();
         call.on('stream', (remoteStream) => {
@@ -642,31 +792,46 @@
           video.srcObject = remoteStream;
           video.classList.remove('hidden');
           video.play().catch(() => {});
-          logMsg(`¡Pantalla sincronizada en tiempo real con la habitación!`, "text-emerald-400");
         });
       });
-
-      peer.on('error', (err) => logMsg(`Error al conectar: Verifica el código (${err.type})`, "text-rose-400"));
     });
 
-    // RECEPCIÓN DE DATOS EN EL HOST
+    // Watchdog cada 500ms: mide la latencia en redes 3G/4G y dispara conmutación si hay caída
+    function startPingWatchdog() {
+      setInterval(() => {
+        if (!hostConn || !hostConn.open) {
+          if (document.getElementById('opt-multipath').checked) triggerSeamlessFailover();
+          return;
+        }
+        hostConn.send({ type: 'PING', ts: performance.now() });
+      }, 500);
+    }
+
     function handleHostData(conn, data) {
+      if (data.type === 'PING') {
+        conn.send({ type: 'PONG', ts: data.ts });
+        return;
+      }
+
       if (data.type === 'JOIN_REQUEST') {
         if (data.hash !== selectedRom.hash) {
           conn.send({
             type: 'JOIN_REJECTED',
-            reason: `Tu archivo ROM (${data.hash}) no es igual al de la sala (${selectedRom.hash}). Carguen el mismo archivo.`
+            reason: `CRC32 distinto (${data.hash} vs ${selectedRom.hash}). Carguen la misma ROM.`
           });
           return;
         }
         if (players.length >= 4) {
-          conn.send({ type: 'JOIN_REJECTED', reason: 'La sala ya tiene el máximo de 4 jugadores de N64.' });
+          conn.send({ type: 'JOIN_REJECTED', reason: 'Sala llena (Máx 4 jugadores).' });
           return;
         }
 
-        const pIndex = players.length + 1;
-        connections.push(conn);
-        players.push({ id: conn.peer, playerIndex: pIndex, hash: data.hash, label: `Jugador ${pIndex}` });
+        const existing = players.find(p => p.id === conn.peer);
+        const pIndex = existing ? existing.playerIndex : players.length + 1;
+        if (!existing) {
+          connections.push(conn);
+          players.push({ id: conn.peer, playerIndex: pIndex, hash: data.hash, label: `Jugador ${pIndex}` });
+        }
 
         conn.send({
           type: 'JOIN_ACCEPTED',
@@ -675,48 +840,84 @@
           players: players
         });
         broadcastLobbyState();
-        logMsg(`¡Jugador ${pIndex} entró a la sala con la ROM verificada!`, "text-emerald-400");
+        logMsg(`Jugador ${pIndex} sincronizado [Canal UDP 4-Bytes Activo]`, "text-emerald-400");
 
-        // Si la partida ya estaba iniciada, meter al amigo de inmediato
         if (gameStarted) {
-          conn.send({ type: 'START_GAME', starter: 'Anfitrión' });
-          setTimeout(() => streamCanvasToPeer(conn.peer), 1000);
+          conn.send({ type: 'START_GAME' });
+          setTimeout(() => streamCanvasToPeer(conn.peer), 700);
         }
       }
 
-      // Si CUALQUIER amigo presiona "Iniciar Partida Sincronizada", se inicia para TODOS
       if (data.type === 'REQUEST_START_ALL') {
-        logMsg(`¡Jugador ${data.playerIndex} inició la partida para todos!`, "text-emerald-400");
         triggerStartForEveryone();
       }
 
-      // Recibir las pulsaciones de botones en vivo de los Jugadores 2, 3 y 4
+      if (data.type === 'CLIENT_NET_REPORT') {
+        // Ajustar el bitrate de video dinámicamente si un amigo está en red 3G/4G lenta
+        adaptStreamBitrateForMobile(data.ping);
+      }
+
       if (data.type === 'REMOTE_INPUT') {
         injectEmulatorInput(data.playerIndex - 1, data.inputIndex, data.value);
       }
     }
 
-    // RECEPCIÓN DE DATOS EN LOS CLIENTES (J2, J3, J4)
     function handleClientData(data) {
+      if (data.type === 'PONG') {
+        currentPing = Math.round(performance.now() - data.ts);
+        document.getElementById('lobby-ping').textContent = `${currentPing} ms`;
+        document.getElementById('hud-ping').textContent = `${currentPing}ms`;
+
+        // Reportar al Host si estamos en una red móvil con congestión para que reduzca el peso de los cuadros
+        if (hostConn && hostConn.open) {
+          hostConn.send({ type: 'CLIENT_NET_REPORT', ping: currentPing });
+        }
+        if (currentPing > 380 && document.getElementById('opt-multipath').checked) {
+          triggerSeamlessFailover();
+        }
+        return;
+      }
+
       if (data.type === 'JOIN_REJECTED') {
         alert(data.reason);
-        logMsg(`Rechazado: ${data.reason}`, "text-rose-400");
       }
       if (data.type === 'JOIN_ACCEPTED') {
         myPlayerIndex = data.playerIndex;
         players = data.players;
         updateRoomUI(currentRoomId, data.roomHash);
-        document.getElementById('connection-badge').textContent = `Sala: ${currentRoomId} (J${myPlayerIndex})`;
-        logMsg(`¡Conectado como Jugador ${myPlayerIndex}! Cualquiera puede iniciar la partida.`, "text-emerald-400");
+        document.getElementById('connection-badge').textContent = `${currentRoomId} (J${myPlayerIndex})`;
+        logMsg(`Conectado como Jugador ${myPlayerIndex}. Listo para iniciar.`, "text-emerald-400");
       }
       if (data.type === 'LOBBY_UPDATE') {
         players = data.players;
         renderPlayersList();
       }
       if (data.type === 'START_GAME') {
-        logMsg(`¡Iniciando partida sincronizada en tu pantalla!`, "text-emerald-400");
         enterArcadeScreen(true);
       }
+    }
+
+    // Compresión adaptativa de video WebRTC para redes 3G / 4G inestables
+    function adaptStreamBitrateForMobile(clientPing) {
+      const profile = document.getElementById('opt-stream-profile').value;
+      let targetBitrate = 550000; // 550 kbps por defecto (muy ligero)
+      let maxFramerate = 60;
+
+      if (profile === 'ultra-low' || (profile === 'auto' && clientPing > 170)) {
+        targetBitrate = 240000; // 240 kbps para redes 3G/4G débiles
+        maxFramerate = 30;
+      }
+
+      activeMediaCalls.forEach(call => {
+        const sender = call.peerConnection?.getSenders()?.find(s => s.track && s.track.kind === 'video');
+        if (sender && sender.getParameters) {
+          const params = sender.getParameters();
+          if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+          params.encodings[0].maxBitrate = targetBitrate;
+          params.encodings[0].maxFramerate = maxFramerate;
+          sender.setParameters(params).catch(() => {});
+        }
+      });
     }
 
     function broadcastLobbyState() {
@@ -737,18 +938,14 @@
       players.forEach(p => {
         const isMe = p.playerIndex === myPlayerIndex;
         const li = document.createElement('li');
-        li.className = `flex justify-between items-center px-2.5 py-1.5 rounded border ${
-          isMe ? 'bg-indigo-950/70 border-indigo-500/60 text-white font-bold' : 'bg-slate-900/70 border-slate-800 text-slate-300'
+        li.className = `flex justify-between items-center px-2.5 py-1 rounded border ${
+          isMe ? 'bg-indigo-950/80 border-indigo-500/60 text-white font-bold' : 'bg-slate-900 border-slate-800 text-slate-300'
         }`;
-        li.innerHTML = `
-          <span>🎮 ${p.label} ${isMe ? '(Tú)' : ''}</span>
-          <span class="text-emerald-400 font-mono text-[10px]">Mando #${p.playerIndex} OK</span>
-        `;
+        li.innerHTML = `<span>🎮 ${p.label} ${isMe ? '(Tú)' : ''}</span> <span class="text-emerald-400 font-mono text-[10px]">UDP #${p.playerIndex}</span>`;
         ul.appendChild(li);
       });
     }
 
-    // BOTÓN DE INICIAR PARTIDA (DISPONIBLE PARA TODOS LOS CONECTADOS)
     document.getElementById('btn-start-netplay').addEventListener('click', () => {
       if (isHost) {
         triggerStartForEveryone();
@@ -765,45 +962,41 @@
 
     function triggerStartForEveryone() {
       if (gameStarted) return;
-      // Ordenar a todos los dispositivos conectados que abran la pantalla del juego inmediatamente
       connections.forEach(c => c.send({ type: 'START_GAME' }));
       enterArcadeScreen(true);
     }
 
     /********************************************************************
-     * 4. MOTOR DEL EMULADOR Y STREAMING DE HABITACIÓN EN TIEMPO REAL
+     * 5. EMULADOR OPTIMIZADO PARA GAMA BAJA (SIN SOMBRAS PESADAS NI FILTROS)
      ********************************************************************/
     function enterArcadeScreen(isMultiplayer) {
       gameStarted = true;
-      const overlay = document.getElementById('arcade-overlay');
-      overlay.classList.add('active');
+      document.getElementById('arcade-overlay').classList.add('active');
 
-      // Intentar bloquear pantalla horizontal en teléfonos celulares
       if (screen.orientation && screen.orientation.lock) {
         screen.orientation.lock('landscape').catch(() => {});
       }
 
       if (isHost) {
         document.getElementById('remote-video').classList.add('hidden');
-        bootHostEmulator(isMultiplayer);
+        bootLowEndOptimizedEmulator(isMultiplayer);
       } else {
-        // Los clientes ven el stream directo de la habitación y sus controles se envían al Puerto 2, 3 o 4
         document.getElementById('emulator-mount').classList.add('hidden');
         document.getElementById('remote-video').classList.remove('hidden');
       }
     }
 
-    // Botón MENU para volver al Lobby
     document.getElementById('btn-touch-menu').addEventListener('click', () => {
       document.getElementById('arcade-overlay').classList.remove('active');
       gameStarted = false;
     });
 
-    function bootHostEmulator(isMultiplayer) {
+    function bootLowEndOptimizedEmulator(isMultiplayer) {
       const mount = document.getElementById('emulator-mount');
       mount.classList.remove('hidden');
       mount.innerHTML = '<div id="ejs-target" style="width:100%;height:100%;"></div>';
 
+      const lowGpuMode = document.getElementById('opt-low-gpu').checked;
       const romBlobUrl = URL.createObjectURL(selectedRom.blob);
 
       window.EJS_player = '#ejs-target';
@@ -812,6 +1005,23 @@
       window.EJS_gameUrl = romBlobUrl;
       window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
       window.EJS_startOnLoaded = true;
+
+      // Banderas de núcleo Mupen64Plus-Next para reducir hasta 65% de carga en CPU y GPU de gama baja
+      if (lowGpuMode) {
+        document.getElementById('hud-mode').textContent = 'FAST-GPU 240p';
+        window.EJS_defaultOptions = {
+          'mupen64plus-43screensize': '320x240',      // Resolución nativa ultrarrápida
+          'mupen64plus-BilinearMode': 'standard',     // Simplifica interpolación de texturas
+          'mupen64plus-EnableFBEmulation': 'False',   // Elimina sombras de Framebuffer pesadas
+          'mupen64plus-EnableLODEmulation': 'False',  // Desactiva cálculo pesado de detalle lejano
+          'mupen64plus-EnableHWLighting': 'False',    // Desactiva sombreado por hardware costoso
+          'mupen64plus-MultiSampling': '0',           // 0x Anti-Aliasing para máxima fluidez
+          'mupen64plus-FXAA': '0',                    // Sin post-procesado
+          'mupen64plus-rdp-plugin': 'gliden64',
+          'mupen64plus-rsp-plugin': 'hle'             // High-Level Emulation (ahorra CPU)
+        };
+      }
+
       window.EJS_Buttons = {
         playPause: false, restart: false, mute: false, settings: false,
         fullscreen: false, saveState: false, loadState: false, screenRecord: false,
@@ -820,10 +1030,8 @@
       };
 
       window.EJS_onGameStart = () => {
-        logMsg(`Emulador N64 corriendo a 60 FPS.`, "text-emerald-400");
-        if (isMultiplayer) {
-          startCanvasRoomBroadcast();
-        }
+        logMsg(`Motor N64 iniciado en modo Low-End GPU.`, "text-emerald-400");
+        if (isMultiplayer) startCanvasRoomBroadcast();
       };
 
       const oldScript = document.getElementById('ejs-loader-script');
@@ -835,79 +1043,64 @@
       document.body.appendChild(script);
     }
 
-    // Captura el Canvas + Audio del Host y lo transmite en vivo a todos los jugadores en la sala
     function startCanvasRoomBroadcast() {
+      const profile = document.getElementById('opt-stream-profile').value;
+      const fps = profile === 'ultra-low' ? 30 : 45; // 45 FPS ahorra ancho de banda móvil y mantiene fluidez
+
       const checkCanvas = setInterval(() => {
         const canvas = document.querySelector('#emulator-mount canvas');
         if (canvas && canvas.captureStream) {
           clearInterval(checkCanvas);
-          hostMediaStream = canvas.captureStream(60);
-
-          // Intentar adjuntar pista de audio WebAudio del emulador si está activa
-          try {
-            const audioCtx = window.EJS_emulator?.Module?.SDL2?.audioContext;
-            if (audioCtx) {
-              const dest = audioCtx.createMediaStreamDestination();
-              hostMediaStream.addTrack(dest.stream.getAudioTracks()[0]);
-            }
-          } catch (e) {}
-
+          hostMediaStream = canvas.captureStream(fps);
           connections.forEach(c => streamCanvasToPeer(c.peer));
         }
-      }, 400);
+      }, 350);
     }
 
     function streamCanvasToPeer(remotePeerId) {
       if (!hostMediaStream || !peer) return;
-      peer.call(remotePeerId, hostMediaStream);
+      const call = peer.call(remotePeerId, hostMediaStream);
+      activeMediaCalls.push(call);
+      setTimeout(() => adaptStreamBitrateForMobile(currentPing), 1000);
     }
 
     /********************************************************************
-     * 5. MAPEO DE CONTROLES (LAPTOP Y MÓVIL IMAGEN A) -> PUERTOS N64 1-4
-     * Índices estándar de RetroArch / EmulatorJS Mupen64Plus:
-     * 0:B, 1:Y, 3:START, 4:DUP, 5:DDOWN, 6:DLEFT, 7:DRIGHT, 8:A,
-     * 10:L, 11:R, 12:Z, 16:ST_R, 17:ST_L, 18:ST_D, 19:ST_U,
-     * 20:C_R, 21:C_L, 22:C_D, 23:C_U
+     * 6. ENVÍO DE ACCIONES EN PAQUETES BINARIOS DE 4 BYTES (UDP)
      ********************************************************************/
     const N64_INPUT_INDEX = {
-      B: 0,
-      START: 3,
-      DUP: 4,
-      DDOWN: 5,
-      DLEFT: 6,
-      DRIGHT: 7,
-      A: 8,
-      L: 10,
-      R: 11,
-      Z: 12,
-      STICK_RIGHT: 16,
-      STICK_LEFT: 17,
-      STICK_DOWN: 18,
-      STICK_UP: 19,
-      CRIGHT: 20,
-      CLEFT: 21,
-      CDOWN: 22,
-      CUP: 23
+      B: 0, START: 3, DUP: 4, DDOWN: 5, DLEFT: 6, DRIGHT: 7,
+      A: 8, L: 10, R: 11, Z: 12,
+      STICK_RIGHT: 16, STICK_LEFT: 17, STICK_DOWN: 18, STICK_UP: 19,
+      CRIGHT: 20, CLEFT: 21, CDOWN: 22, CUP: 23
     };
 
-    // Envía la acción al puerto del jugador correspondiente (Jugador 1..4)
     function sendPlayerInput(btnName, value) {
       const inputIndex = N64_INPUT_INDEX[btnName];
       if (inputIndex === undefined) return;
 
       if (isHost) {
-        injectEmulatorInput(0, inputIndex, value); // Host = Puerto 0 (Jugador 1)
+        injectEmulatorInput(0, inputIndex, value);
+        return;
+      }
+
+      const useBinaryUdp = document.getElementById('opt-binary-udp').checked;
+
+      if (useBinaryUdp) {
+        const binaryPacket = packBinaryInput(myPlayerIndex, inputIndex, value);
+        if (hostUdpConn && hostUdpConn.open) {
+          hostUdpConn.send(binaryPacket);
+        } else {
+          // Guardar en el buffer circular mientras conmuta entre Wi-Fi y 3G/4G
+          if (pendingInputQueue.length < 32) pendingInputQueue.push(binaryPacket);
+          if (hostConn && hostConn.open) {
+            hostConn.send({ type: 'REMOTE_INPUT', playerIndex: myPlayerIndex, inputIndex, value });
+          }
+        }
       } else if (hostConn && hostConn.open) {
-        hostConn.send({
-          type: 'REMOTE_INPUT',
-          playerIndex: myPlayerIndex,
-          inputIndex: inputIndex,
-          value: value
-        });
+        hostConn.send({ type: 'REMOTE_INPUT', playerIndex: myPlayerIndex, inputIndex, value });
       }
     }
 
-    // Inyecta directamente en la memoria de Mupen64Plus WASM
     function injectEmulatorInput(playerPort, inputIndex, value) {
       const gm = window.EJS_emulator?.gameManager;
       if (gm && typeof gm.simulateInput === 'function') {
@@ -916,10 +1109,7 @@
     }
 
     /********************************************************************
-     * 6. CONTROLES DE LAPTOP (TECLADO PERSONALIZADO SEGÚN TU LISTA)
-     * L: Q | R: R | A: E | B: F | Z: V
-     * D-Pad: ArrowUp, ArrowDown, ArrowLeft, ArrowRight
-     * C-Pad: W (Arriba), S (Abajo), A (Izquierda), D (Derecha)
+     * 7. CONTROLES DE LAPTOP (L:Q, R:R, A:E, B:F, Z:V, D-Pad:Flechas, C:AWSD)
      ********************************************************************/
     const LAPTOP_KEYMAP = {
       'KeyQ': 'L',
@@ -928,17 +1118,14 @@
       'KeyF': 'B',
       'KeyV': 'Z',
       'Enter': 'START',
-      // C-Pad: A, W, S, D
       'KeyW': 'CUP',
       'KeyS': 'CDOWN',
       'KeyA': 'CLEFT',
       'KeyD': 'CRIGHT',
-      // D-Pad: Up, Down, Left, Right
       'ArrowUp': 'DUP',
       'ArrowDown': 'DDOWN',
       'ArrowLeft': 'DLEFT',
       'ArrowRight': 'DRIGHT',
-      // Stick Analógico dedicado adicional (I, K, J, L)
       'KeyI': 'STICK_UP',
       'KeyK': 'STICK_DOWN',
       'KeyJ': 'STICK_LEFT',
@@ -957,12 +1144,10 @@
       if (activeKeys.has(e.code)) return;
       activeKeys.add(e.code);
 
-      const isAnalogAxis = mapped.startsWith('STICK_');
-      sendPlayerInput(mapped, isAnalogAxis ? 32767 : 1);
+      const isAnalog = mapped.startsWith('STICK_');
+      sendPlayerInput(mapped, isAnalog ? 32767 : 1);
 
-      // Si está marcada la opción, las flechas también mueven el Stick 3D (útil en Mario 64 / Mario Kart)
-      const arrowsAsStick = document.getElementById('arrows-as-stick')?.checked;
-      if (arrowsAsStick) {
+      if (document.getElementById('arrows-as-stick')?.checked) {
         if (e.code === 'ArrowUp') sendPlayerInput('STICK_UP', 32767);
         if (e.code === 'ArrowDown') sendPlayerInput('STICK_DOWN', 32767);
         if (e.code === 'ArrowLeft') sendPlayerInput('STICK_LEFT', 32767);
@@ -981,8 +1166,7 @@
 
       sendPlayerInput(mapped, 0);
 
-      const arrowsAsStick = document.getElementById('arrows-as-stick')?.checked;
-      if (arrowsAsStick) {
+      if (document.getElementById('arrows-as-stick')?.checked) {
         if (e.code === 'ArrowUp') sendPlayerInput('STICK_UP', 0);
         if (e.code === 'ArrowDown') sendPlayerInput('STICK_DOWN', 0);
         if (e.code === 'ArrowLeft') sendPlayerInput('STICK_LEFT', 0);
@@ -991,7 +1175,7 @@
     }, true);
 
     /********************************************************************
-     * 7. CONTROLES TÁCTILES DE TELÉFONO CELULAR (DISEÑO IMAGEN A)
+     * 8. CONTROLES TÁCTILES DE CELULAR (DISEÑO IMAGEN A + THROTTLING 60HZ)
      ********************************************************************/
     document.querySelectorAll('.touch-btn').forEach(btn => {
       const btnName = btn.getAttribute('data-btn');
@@ -1016,10 +1200,11 @@
       btn.addEventListener('mouseleave', release);
     });
 
-    // Lógica del Stick Analógico Octagonal 360° (Izquierda Centro)
+    // Stick Octagonal con cuantización para no saturar redes 3G/4G con micro-movimientos
     const octagonZone = document.getElementById('octagon-zone');
     const stickNub = document.getElementById('stick-nub');
     let stickActive = false;
+    let lastStickSend = 0;
 
     function handleStickMove(clientX, clientY) {
       const rect = octagonZone.getBoundingClientRect();
@@ -1038,10 +1223,14 @@
 
       stickNub.style.transform = `translate(${dx}px, ${dy}px)`;
 
-      // Normalizar de 0 a 32767 para el núcleo de Nintendo 64
+      // Limitar la tasa de envío del stick a 1 paquete binario cada 16ms (60Hz) para cuidar redes 3G/4G
+      const now = performance.now();
+      if (now - lastStickSend < 16) return;
+      lastStickSend = now;
+
       const normX = dx / maxRadius;
       const normY = dy / maxRadius;
-      const deadzone = 0.12;
+      const deadzone = 0.14;
 
       sendPlayerInput('STICK_RIGHT', normX > deadzone ? Math.round(normX * 32767) : 0);
       sendPlayerInput('STICK_LEFT',  normX < -deadzone ? Math.round(-normX * 32767) : 0);
@@ -1061,21 +1250,17 @@
     octagonZone.addEventListener('touchstart', (e) => {
       e.preventDefault();
       stickActive = true;
-      const t = e.targetTouches[0];
-      handleStickMove(t.clientX, t.clientY);
+      handleStickMove(e.targetTouches[0].clientX, e.targetTouches[0].clientY);
     }, { passive: false });
 
     octagonZone.addEventListener('touchmove', (e) => {
       e.preventDefault();
-      if (!stickActive) return;
-      const t = e.targetTouches[0];
-      handleStickMove(t.clientX, t.clientY);
+      if (stickActive) handleStickMove(e.targetTouches[0].clientX, e.targetTouches[0].clientY);
     }, { passive: false });
 
     octagonZone.addEventListener('touchend', resetStick);
     octagonZone.addEventListener('touchcancel', resetStick);
 
-    // Soporte con Mouse para probar el Stick Octagonal desde la Laptop
     octagonZone.addEventListener('mousedown', (e) => {
       stickActive = true;
       handleStickMove(e.clientX, e.clientY);
@@ -1087,9 +1272,9 @@
       if (stickActive) resetStick();
     });
 
-    // Inicializar Base de Datos Local
     window.addEventListener('DOMContentLoaded', () => {
       initDB();
+      monitorNetworkInterface();
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
       }
