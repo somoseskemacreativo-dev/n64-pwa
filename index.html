@@ -232,7 +232,7 @@
       <div id="status-dot" class="w-3 h-3 rounded-full bg-emerald-500"></div>
       <h1 class="text-lg font-bold tracking-wider text-white">N64 <span class="text-indigo-400">TURBO UDP</span> PWA</h1>
       <span class="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700/50 px-2 py-0.5 rounded font-mono">
-        4-Byte Binary UDP + Low-GPU
+        TURN 3G/4G Activo + 4-Byte UDP
       </span>
     </div>
     <div class="flex items-center gap-2">
@@ -265,7 +265,7 @@
 
       <!-- 2. SALA MULTIJUGADOR -->
       <div class="glass p-4 rounded-xl space-y-3">
-        <h2 class="font-bold text-xs uppercase tracking-wider text-emerald-400">2. Sala P2P (UDP Ultraligero)</h2>
+        <h2 class="font-bold text-xs uppercase tracking-wider text-emerald-400">2. Sala P2P (TURN + UDP Ultraligero)</h2>
         
         <button id="btn-create-room" disabled class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition">
           Crear Sala (Jugador 1 / Host)
@@ -319,8 +319,8 @@
           <span class="text-[11px] text-slate-400">Calidad Stream Red Móvil:</span>
           <select id="opt-stream-profile" class="bg-slate-900 border border-slate-700 text-[11px] text-white rounded px-2 py-1">
             <option value="auto" selected>Auto-Adaptativo (3G/4G/Wi-Fi)</option>
-            <option value="ultra-low">Ultra Ligero 3G (240p • 250 kbps)</option>
-            <option value="balanced">Equilibrado 4G (240p • 600 kbps)</option>
+            <option value="ultra-low">Ultra Ligero 3G (240p • 240 kbps)</option>
+            <option value="balanced">Equilibrado 4G (240p • 550 kbps)</option>
           </select>
         </div>
       </div>
@@ -332,7 +332,7 @@
       <div class="space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="text-xs font-bold uppercase px-2.5 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-            Inclusividad Gama Baja + Resiliencia 3G / 4G / Wi-Fi
+            Relay TURN Metered.ca Activo + Gama Baja 60 FPS
           </span>
           <button id="btn-play-solo" disabled class="text-xs bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-indigo-300 font-bold px-3 py-1.5 rounded-lg border border-slate-700">
             🎮 Probar ROM en Solitario
@@ -354,8 +354,8 @@
             <div id="lobby-ping" class="text-xs font-bold text-amber-400 font-mono">-- ms</div>
           </div>
           <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg">
-            <div class="text-[10px] text-slate-400 uppercase">Guardia Wi-Fi/4G</div>
-            <div id="failover-status" class="text-xs font-bold text-emerald-400 font-mono">Activa</div>
+            <div class="text-[10px] text-slate-400 uppercase">Relay TURN 3G/4G</div>
+            <div id="failover-status" class="text-xs font-bold text-emerald-400 font-mono">Metered OK</div>
           </div>
         </div>
       </div>
@@ -379,9 +379,9 @@
         </div>
 
         <div class="bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl space-y-1.5">
-          <h3 class="text-xs font-bold uppercase text-emerald-400">📡 Bitácora de Red Multipath</h3>
+          <h3 class="text-xs font-bold uppercase text-emerald-400">📡 Bitácora de Red Multipath + TURN</h3>
           <div id="net-log" class="font-mono text-[11px] text-slate-400 h-32 overflow-y-auto space-y-1 bg-slate-950 p-2 rounded border border-slate-900">
-            <div>[Motor] Listo. Modo Gama Baja y Compresión Binaria de 4-Bytes activos.</div>
+            <div>[Motor] Credenciales TURN Metered.ca cargadas (8d978f8e75a7409147833a34).</div>
           </div>
         </div>
       </div>
@@ -421,7 +421,7 @@
     <div id="screen-center">
       <!-- Telemetría en tiempo real -->
       <div id="net-hud">
-        <span id="hud-net">UDP: OK</span> •
+        <span id="hud-net">UDP+TURN: OK</span> •
         <span id="hud-ping">0ms</span> •
         <span id="hud-mode">LOW-GPU</span>
       </div>
@@ -568,11 +568,6 @@
 
     /********************************************************************
      * 3. CODIFICADOR BINARIO DE 4 BYTES (PROTOCOLO TIPO UDP RÁPIDO)
-     * En lugar de enviar JSON de ~85 bytes, empaquetamos cada acción en
-     * un ArrayBuffer de 4 bytes:
-     * Byte 0: Header (0xA1 = Input de Jugador | Jugador 1..4 en los 2 bits bajos)
-     * Byte 1: Índice del Botón o Eje N64 (0..23)
-     * Byte 2 y 3: Valor Int16 (0 o 1 para botones, 0..32767 para Stick Analógico)
      ********************************************************************/
     function packBinaryInput(playerIndex, inputIndex, value) {
       const buffer = new ArrayBuffer(4);
@@ -596,14 +591,14 @@
     }
 
     /********************************************************************
-     * 4. MOTOR DE RED MULTIPATH (WI-FI ⇄ DATOS MÓVILES 3G/4G SIN CAÍDAS)
+     * 4. MOTOR DE RED MULTIPATH + CREDENCIALES TURN METERED.CA ACTIVAS
      ********************************************************************/
     let peer = null;
     let isHost = true;
-    let connections = [];     // Canal Reliable (Lobby/Control)
-    let udpConnections = [];  // Canal Unreliable UDP (Botones en 4 Bytes)
-    let hostConn = null;      // Canal Reliable hacia el Host
-    let hostUdpConn = null;   // Canal UDP Rápido hacia el Host
+    let connections = [];
+    let udpConnections = [];
+    let hostConn = null;
+    let hostUdpConn = null;
     let activeMediaCalls = [];
     let players = [];
     let myPlayerIndex = 1;
@@ -611,22 +606,40 @@
     let gameStarted = false;
     let hostMediaStream = null;
     let currentPing = 25;
-    let pendingInputQueue = []; // Buffer circular si ocurre un micro-corte Wi-Fi -> 4G
+    let pendingInputQueue = [];
     let isReconnecting = false;
 
+    // Configuración con tus credenciales exactas de Metered.ca (Imagen A)
     const peerConfig = {
       config: {
         iceServers: [
+          { urls: 'stun:stun.relay.metered.ca:80' },
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun.cloudflare.com:3478' }
+          {
+            urls: 'turn:standard.relay.metered.ca:80',
+            username: '8d978f8e75a7409147833a34',
+            credential: 'sYzoBK6mEGvnJ7/e'
+          },
+          {
+            urls: 'turn:standard.relay.metered.ca:80?transport=tcp',
+            username: '8d978f8e75a7409147833a34',
+            credential: 'sYzoBK6mEGvnJ7/e'
+          },
+          {
+            urls: 'turn:standard.relay.metered.ca:443',
+            username: '8d978f8e75a7409147833a34',
+            credential: 'sYzoBK6mEGvnJ7/e'
+          },
+          {
+            urls: 'turns:standard.relay.metered.ca:443?transport=tcp',
+            username: '8d978f8e75a7409147833a34',
+            credential: 'sYzoBK6mEGvnJ7/e'
+          }
         ],
-        iceCandidatePoolSize: 10 // Pre-calcula candidatos Wi-Fi y Celular para cambio rápido
+        iceCandidatePoolSize: 10
       }
     };
 
-    // Detector en tiempo real del tipo de red (Wi-Fi vs 3G/4G)
     function monitorNetworkInterface() {
       const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
       const badge = document.getElementById('net-type-badge');
@@ -640,9 +653,8 @@
         const rtt = conn.rtt ? `${conn.rtt}ms` : '';
         badge.textContent = `Red: ${type} ${rtt}`;
 
-        // Si el sistema operativo reporta cambio entre Wi-Fi y Celular, disparamos el Fast-Failover
         if (!isHost && currentRoomId && document.getElementById('opt-multipath').checked) {
-          logMsg(`[Multipath] Cambio de red detectado (${type}). Ajustando ruta UDP...`, "text-amber-400");
+          logMsg(`[Multipath] Cambio de red detectado (${type}). Reenrutando vía TURN...`, "text-amber-400");
           triggerSeamlessFailover();
         }
       };
@@ -654,14 +666,12 @@
         badge.textContent = `Red: Multi-Interfaz`;
       }
 
-      // Si el teléfono recupera señal tras un micro-corte
       window.addEventListener('online', () => {
         logMsg(`[Multipath] Señal recuperada. Sincronizando canal...`, "text-emerald-400");
         if (!isHost && currentRoomId) triggerSeamlessFailover();
       });
     }
 
-    // Reconexión silenciosa en caliente sin cerrar la partida cuando cae el Wi-Fi y entra 4G
     function triggerSeamlessFailover() {
       if (isReconnecting || isHost || !currentRoomId) return;
       if (hostUdpConn && hostUdpConn.open && currentPing < 350) return;
@@ -672,7 +682,6 @@
 
       setTimeout(() => {
         try {
-          // Abrir nuevo túnel UDP sobre la nueva interfaz de red activa (ej. Datos Móviles)
           const newUdp = peer.connect(currentRoomId, {
             label: 'udp-fast',
             reliable: false,
@@ -682,11 +691,10 @@
           newUdp.on('open', () => {
             hostUdpConn = newUdp;
             isReconnecting = false;
-            document.getElementById('hud-net').textContent = 'UDP: 4G/WIFI OK';
-            document.getElementById('failover-status').textContent = 'Activa (OK)';
-            logMsg(`[Multipath] Túnel UDP restablecido sin perder la partida.`, "text-emerald-400");
+            document.getElementById('hud-net').textContent = 'UDP+TURN: OK';
+            document.getElementById('failover-status').textContent = 'Metered OK';
+            logMsg(`[Multipath] Túnel UDP+TURN restablecido sin perder la partida.`, "text-emerald-400");
 
-            // Vaciar buffer de botones presionados durante el milisegundo de transición
             while (pendingInputQueue.length > 0) {
               const pkt = pendingInputQueue.shift();
               hostUdpConn.send(pkt);
@@ -716,11 +724,10 @@
         players = [{ id, playerIndex: 1, hash: selectedRom.hash, label: 'Jugador 1 (Host)' }];
         updateRoomUI(id, selectedRom.hash);
         document.getElementById('connection-badge').textContent = `${id} (J1)`;
-        logMsg(`Sala UDP creada: ${id}`, "text-emerald-400");
+        logMsg(`Sala UDP+TURN creada: ${id}`, "text-emerald-400");
       });
 
       peer.on('connection', (conn) => {
-        // Distinguir entre el canal de control y el canal binario UDP sin retraso
         if (conn.label === 'udp-fast') {
           udpConnections.push(conn);
           conn.on('data', (rawBuf) => {
@@ -739,7 +746,6 @@
           conn.on('data', (data) => handleHostData(conn, data));
         });
         conn.on('close', () => {
-          // Dar margen de 6 segundos por si el jugador está conmutando de Wi-Fi a Datos Móviles
           setTimeout(() => {
             if (!conn.open) {
               players = players.filter(p => p.id !== conn.peer);
@@ -763,9 +769,8 @@
       peer = new Peer(peerConfig);
 
       peer.on('open', () => {
-        logMsg(`Abriendo canal híbrido hacia ${code}...`, "text-indigo-400");
+        logMsg(`Conectando a ${code} vía STUN/TURN Metered.ca...`, "text-indigo-400");
         
-        // 1. Canal de Control (Lobby y Heartbeat)
         hostConn = peer.connect(code, { reliable: true });
         hostConn.on('open', () => {
           hostConn.send({
@@ -777,7 +782,6 @@
         });
         hostConn.on('data', (data) => handleClientData(data));
 
-        // 2. Canal UDP Modificado (Sin bloqueo, sin retransmisiones lentas, paquetes binarios de 4 bytes)
         hostUdpConn = peer.connect(code, {
           label: 'udp-fast',
           reliable: false,
@@ -796,7 +800,6 @@
       });
     });
 
-    // Watchdog cada 500ms: mide la latencia en redes 3G/4G y dispara conmutación si hay caída
     function startPingWatchdog() {
       setInterval(() => {
         if (!hostConn || !hostConn.open) {
@@ -840,7 +843,7 @@
           players: players
         });
         broadcastLobbyState();
-        logMsg(`Jugador ${pIndex} sincronizado [Canal UDP 4-Bytes Activo]`, "text-emerald-400");
+        logMsg(`Jugador ${pIndex} sincronizado [TURN + UDP 4-Bytes]`, "text-emerald-400");
 
         if (gameStarted) {
           conn.send({ type: 'START_GAME' });
@@ -853,7 +856,6 @@
       }
 
       if (data.type === 'CLIENT_NET_REPORT') {
-        // Ajustar el bitrate de video dinámicamente si un amigo está en red 3G/4G lenta
         adaptStreamBitrateForMobile(data.ping);
       }
 
@@ -868,7 +870,6 @@
         document.getElementById('lobby-ping').textContent = `${currentPing} ms`;
         document.getElementById('hud-ping').textContent = `${currentPing}ms`;
 
-        // Reportar al Host si estamos en una red móvil con congestión para que reduzca el peso de los cuadros
         if (hostConn && hostConn.open) {
           hostConn.send({ type: 'CLIENT_NET_REPORT', ping: currentPing });
         }
@@ -897,14 +898,13 @@
       }
     }
 
-    // Compresión adaptativa de video WebRTC para redes 3G / 4G inestables
     function adaptStreamBitrateForMobile(clientPing) {
       const profile = document.getElementById('opt-stream-profile').value;
-      let targetBitrate = 550000; // 550 kbps por defecto (muy ligero)
+      let targetBitrate = 550000;
       let maxFramerate = 60;
 
       if (profile === 'ultra-low' || (profile === 'auto' && clientPing > 170)) {
-        targetBitrate = 240000; // 240 kbps para redes 3G/4G débiles
+        targetBitrate = 240000;
         maxFramerate = 30;
       }
 
@@ -1006,19 +1006,18 @@
       window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
       window.EJS_startOnLoaded = true;
 
-      // Banderas de núcleo Mupen64Plus-Next para reducir hasta 65% de carga en CPU y GPU de gama baja
       if (lowGpuMode) {
         document.getElementById('hud-mode').textContent = 'FAST-GPU 240p';
         window.EJS_defaultOptions = {
-          'mupen64plus-43screensize': '320x240',      // Resolución nativa ultrarrápida
-          'mupen64plus-BilinearMode': 'standard',     // Simplifica interpolación de texturas
-          'mupen64plus-EnableFBEmulation': 'False',   // Elimina sombras de Framebuffer pesadas
-          'mupen64plus-EnableLODEmulation': 'False',  // Desactiva cálculo pesado de detalle lejano
-          'mupen64plus-EnableHWLighting': 'False',    // Desactiva sombreado por hardware costoso
-          'mupen64plus-MultiSampling': '0',           // 0x Anti-Aliasing para máxima fluidez
-          'mupen64plus-FXAA': '0',                    // Sin post-procesado
+          'mupen64plus-43screensize': '320x240',
+          'mupen64plus-BilinearMode': 'standard',
+          'mupen64plus-EnableFBEmulation': 'False',
+          'mupen64plus-EnableLODEmulation': 'False',
+          'mupen64plus-EnableHWLighting': 'False',
+          'mupen64plus-MultiSampling': '0',
+          'mupen64plus-FXAA': '0',
           'mupen64plus-rdp-plugin': 'gliden64',
-          'mupen64plus-rsp-plugin': 'hle'             // High-Level Emulation (ahorra CPU)
+          'mupen64plus-rsp-plugin': 'hle'
         };
       }
 
@@ -1045,7 +1044,7 @@
 
     function startCanvasRoomBroadcast() {
       const profile = document.getElementById('opt-stream-profile').value;
-      const fps = profile === 'ultra-low' ? 30 : 45; // 45 FPS ahorra ancho de banda móvil y mantiene fluidez
+      const fps = profile === 'ultra-low' ? 30 : 45;
 
       const checkCanvas = setInterval(() => {
         const canvas = document.querySelector('#emulator-mount canvas');
@@ -1090,7 +1089,6 @@
         if (hostUdpConn && hostUdpConn.open) {
           hostUdpConn.send(binaryPacket);
         } else {
-          // Guardar en el buffer circular mientras conmuta entre Wi-Fi y 3G/4G
           if (pendingInputQueue.length < 32) pendingInputQueue.push(binaryPacket);
           if (hostConn && hostConn.open) {
             hostConn.send({ type: 'REMOTE_INPUT', playerIndex: myPlayerIndex, inputIndex, value });
@@ -1200,7 +1198,6 @@
       btn.addEventListener('mouseleave', release);
     });
 
-    // Stick Octagonal con cuantización para no saturar redes 3G/4G con micro-movimientos
     const octagonZone = document.getElementById('octagon-zone');
     const stickNub = document.getElementById('stick-nub');
     let stickActive = false;
@@ -1223,7 +1220,6 @@
 
       stickNub.style.transform = `translate(${dx}px, ${dy}px)`;
 
-      // Limitar la tasa de envío del stick a 1 paquete binario cada 16ms (60Hz) para cuidar redes 3G/4G
       const now = performance.now();
       if (now - lastStickSend < 16) return;
       lastStickSend = now;
